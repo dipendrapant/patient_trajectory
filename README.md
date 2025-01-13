@@ -6,9 +6,9 @@ and lets you annotate the plotted trajectories with any additional fields.
 
 ```bash
 pip install patient_trajectory
+```
 
 ## Usage Example
-
 
 ```
 
@@ -46,7 +46,4 @@ annotation_cols=["diagnosis"], # Additional fields to display
 xlim=(0, 10), # Age range for the x-axis
 save_path="patient_plot.png" # Optional: save figure to file
 )
-
-```
-
 ```

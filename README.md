@@ -49,5 +49,4 @@ save_path="patient_plot.png" # Optional: save figure to file
 
 ```
 
-
 ```

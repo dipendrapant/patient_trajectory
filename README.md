@@ -44,6 +44,22 @@ age_col="age",
 cluster_col="cluster",
 annotation_cols=["diagnosis"], # Additional fields to display
 xlim=(0, 10), # Age range for the x-axis
-save_path="patient_plot.png" # Optional: save figure to file
 )
+fig.show()
+```
+
+## Citation
+
+If you use this work, please cite:
+
+```bibtex
+@inproceedings{Pant2024,
+  author    = {Pant, D. and Koochakpour, K. and Westbye, O. S. and Clausen, C. and Leventhal, B. L. and Koposov, R. and Rost, T. B. and Skokauskas, N. and Nytro, O.},
+  title     = {Visualizing Patient Trajectories and Disorder Co-occurrences in Child and Adolescent Mental Health},
+  booktitle = {2024 IEEE International Conference on Bioinformatics and Biomedicine (BIBM)},
+  publisher = {IEEE Computer Society},
+  pages     = {5531--5538},
+  year      = {2024},
+  month     = {Dec 1}
+}
 ```

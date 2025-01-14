@@ -2,12 +2,6 @@ A Python package to load, transform, and visualize patient trajectories for one 
 It handles missing values gracefully, allows you to rename or drop columns,  
 and lets you annotate the plotted trajectories with any additional fields.
 
-## Installation
-
-```bash
-pip install patient_trajectory
-```
-
 ## Usage Example
 
 ```

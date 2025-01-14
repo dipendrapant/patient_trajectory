@@ -6,7 +6,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setuptools.setup(
     name="patient_trajectory",
-    version="0.1.1",
+    version="1",
     author="Dipendra Pant",
     author_email="dipendrapant778@gmail.com",
     description="A package designed to visualize patient trajectories for multiple patients, featuring Gantt-style plots to represent patient episodes.",

@@ -12,13 +12,28 @@ pip install patient_trajectory
 
 ```
 
+"""
+This script demonstrates the usage of the `PatientTrajectoryVisualizer` to create Gantt
+charts for visualizing patient trajectories.
+
+Key Features:
+- Customizable figure size and resolution.
+- Annotated patient episodes with optional cluster legends.
+- Flexible annotation options for additional insights.
+
+Dependencies:
+- pandas
+- matplotlib
+- PatientTrajectoryVisualizer (import from `patient_trajectory.visualization`)
+
+"""
 import pandas as pd
 import numpy as np
-from patient_trajectory import plot_patient_gantt
 import matplotlib.pyplot as plt
+from patient_trajectory.visualization import PatientTrajectoryVisualizer
 
-# Example data
-data = {
+# Sample DataFrame with patient trajectory data
+df = pd.DataFrame({
     "pasient": [
         1, 1, 1, 2, 2, 3, 4, 4, 5, 6,
         7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
@@ -58,35 +73,83 @@ data = {
         "Hypertension", "Obesity", "Depression", "Anxiety", None,
         "Migraine", "Arthritis", "Pneumonia", "Stroke", None,
         "Allergy", "Hypertension", "Cold", "COVID", "Broken Bone"
+    ],
+    "medication": [
+        "MedA", None, "MedB", "MedC", "MedD",
+        None, "MedX", None, "MedE", "MedF",
+        "MedG", None, "MedH", "MedI", "MedJ",
+        None, "MedK", "MedL", "MedM", None,
+        "MedN", None, "MedO", "MedP", "MedQ"
+    ],
+    "insurance": [
+        "Public", "Private", "Public", None, "None",
+        "Public", "Private", "Public", "Public", "Private",
+        "None", "Public", "Private", "Public", "None",
+        "Public", "Private", "Public", "None", "Public",
+        "Public", "Private", "None", "Public", "Public"
+    ],
+    "gender": [
+        "M", "F", "M", "F", "F",
+        "M", "M", "F", "F", "M",
+        "M", "F", "F", "M", "F",
+        "M", "F", "F", "M", "F",
+        "M", "F", "M", "F", "M"
+    ],
+    "marital_status": [
+        "Single", "Single", "Single", "Married", "Married",
+        "Widowed", "Single", "Single", "Married", "Single",
+        "Single", "Married", "Single", "Married", "Single",
+        "Single", "Married", "Divorced", "Married", "Single",
+        "Single", "Married", "Widowed", "Married", "Single"
+    ],
+    "blood_type": [
+        "O+", "A+", "B+", "O-", "AB+",
+        "A-", "B+", "O+", "A+", "AB+",
+        "O-", "B-", "A+", "O+", "A-",
+        "B+", "AB-", "B-", "O+", "A+",
+        "O-", "A+", "AB+", "B-", "A-"
+    ],
+    "allergies": [
+        None, None, "Peanuts", None, None,
+        "Gluten", None, "Seafood", None, None,
+        None, None, "Lactose", None, "Peanuts",
+        None, "Seafood", None, "Bee stings", None,
+        "Pollen", None, "Penicillin", "None", None
+    ],
+    "height_cm": [
+        140, 145, 150, 170, 172,
+        160, 110, 112, 175, 180,
+        165, 168, 174, 169, 155,
+        178, 185, 182, 177, 163,
+        170, 165, 155, 172, 176
     ]
-}
+})
 
-# Convert to DataFrame
-df = pd.DataFrame(data)
+# Instantiate the visualizer
+viz = PatientTrajectoryVisualizer(df=df)
 
-# Visualizing patient trajectories
-fig, ax = plot_patient_gantt(
-    df=df,
-    pasient_col="pasient",
-    cluster_col="cluster",
-    start_date_col="episode_start_date",
-    end_date_col="episode_end_date",
-    annotation_cols=["diagnosis"],  # Add diagnosis as annotations
-    figsize=(12, 6),
-    dpi=120,
-    row_height=0.7,
-    row_gap=0.3,
-    annotation_fontsize=8,
-    axis_fontsize=10,
-    title_fontsize=14,
-    add_cluster_legend=True,
-    curve_color="blue",
-    curve_linestyle="--",
-    curve_linewidth=1.5,
-    save_path=None  # Change to a path if saving the plot
+# Create a Gantt chart with customizable options
+fig, ax = viz.plot_gantt(
+    annotation_cols=[
+        "diagnosis", "medication", "insurance", "gender", "marital_status",
+        "blood_type", "allergies", "height_cm"
+    ],  # Columns to annotate in rectangles (first two are in line 1, others in line 2)
+    figsize=(28, 12),  # Figure size (width, height) in inches
+    dpi=120,  # Resolution (dots per inch)
+    row_height=0.7,  # Height of each episode bar
+    row_gap=0.3,  # Vertical space between bars
+    annotation_fontsize=8,  # Font size of annotation text
+    axis_fontsize=10,  # Font size for axis labels
+    title_fontsize=14,  # Font size for the chart title
+    add_cluster_legend=True,  # Whether to include a cluster legend
+    curve_color="blue",  # Color of the connecting curve
+    curve_linestyle="--",  # Line style for the curve
+    curve_linewidth=1.5  # Line width for the curve
 )
 
+# Display the plot
 plt.show()
+
 
 ```
 

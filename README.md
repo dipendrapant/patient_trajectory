@@ -149,7 +149,7 @@ plt.show()
 
 ## Sample Output
 
-![Output of Patient Trajectory](patient_trajectory/sample_patient_trajectory.png)
+![Output of Patient Trajectory](sample_patient_trajectory.png)
 
 ## Citation
 

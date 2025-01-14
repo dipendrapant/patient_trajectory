@@ -1,54 +1,52 @@
 
-import numpy as np
-import pandas as pd
 import pytest
+import pandas as pd
 
 from patient_trajectory.visualization import PatientTrajectoryVisualizer
 
 
-def test_load_data_and_rename():
-    data = {
-        "patient_id": [5, 5, 6],
-        "episode_start_date": ["2001-01-01", "2005-01-01", None],
-        "episode_end_date": ["2001-06-01", None, "2010-12-31"],
-        "age": [0, 4, 50],
-        "cluster": [1, 2, np.nan],
-        "diagnosis": [np.nan, "B", "C"]
-    }
-    df = pd.DataFrame(data)
+def test_patient_trajectory_visualizer():
+    # A small DataFrame for testing
+    df = pd.DataFrame({
+        "pasient": [1, 1, 2],
+        "episode_start_date": ["2020-01-01", "2020-03-01", "2021-01-15"],
+        "episode_end_date":   ["2020-02-01", "2020-04-01", "2021-02-15"],
+        "age": [10, 11, 50],
+        "cluster": [1, 2, 1],
+        "diagnosis": ["Flu", "Cold", "Check-up"]
+    })
 
-    viz = PatientTrajectoryVisualizer(
-        selected_columns=["patient_id", "episode_start_date", "episode_end_date", "age", "cluster", "diagnosis"],
-        rename_dict={"patient_id": "pasient"},
-    )
-    result = viz.load_data(df)
+    # Instantiate the visualizer
+    viz = PatientTrajectoryVisualizer(df=df)
 
-    assert "pasient" in result.columns
-    assert "patient_id" not in result.columns
-
-def test_plot_patient_timeline():
-    data = {
-        "pasient": [5, 5, 6],
-        "episode_start_date": pd.to_datetime(["2001-01-01", "2005-01-01", "2010-01-01"]),
-        "episode_end_date": pd.to_datetime(["2001-06-01", None, "2010-12-31"]),
-        "age": [0, 4, 50],
-        "cluster": [1, 2, np.nan],
-        "diagnosis": [np.nan, "B", "C"]
-    }
-    df = pd.DataFrame(data)
-
-    viz = PatientTrajectoryVisualizer()
-    clean_df = viz.load_data(df)
-    
-    # We add 'diagnosis' to annotation_cols to test extra field display
-    fig, ax = viz.plot_patient_timeline(
-        clean_df,
-        pasient_col="pasient",
-        age_col="age",
-        cluster_col="cluster",
+    # Plot
+    fig, ax = viz.plot_gantt(
         annotation_cols=["diagnosis"],
-        xlim=(0,60)
+        figsize=(6, 3),
+        dpi=80,
+        row_height=0.5,
+        row_gap=0.1,
+        annotation_fontsize=6,
+        axis_fontsize=8,
+        title_fontsize=10,
+        add_cluster_legend=True,
+        curve_color="blue",
+        curve_linestyle="--",
+        curve_linewidth=1.0,
+        title="Test Patient Trajectory Plot"
     )
-    assert fig is not None
-    assert ax is not None
 
+    # Basic check: fig and ax should be created
+    assert fig is not None, "Figure is None!"
+    assert ax is not None, "Axes object is None!"
+
+    # Optionally, test specific aspects of the plot...
+    # e.g., check the axis labels or title
+    assert ax.get_xlabel() == "Age (Years)"
+    assert ax.get_ylabel() == "Patient Episodes"
+
+    # If you want to temporarily save the figure to ensure it visually looks correct
+    # fig.savefig("test_output.png")
+
+    # Cleanup
+    # (Matplotlib auto-closes but you could do plt.close(fig) if needed)

@@ -1,26 +1,24 @@
 import os
+import setuptools
 
-from setuptools import find_packages, setup
+with open("README.md", "r", encoding="utf-8") as fh:
+    long_description = fh.read()
 
-# Read the contents of your README file
-long_description = ""
-if os.path.isfile("README.md"):
-    with open("README.md", encoding="utf-8") as f:
-        long_description = f.read()
-
-setup(
-    name="patient_trajectory",            
-    version="0.1.0",                      
+setuptools.setup(
+    name="patient_trajectory",
+    version="0.1.1",
     author="Dipendra Pant",
     author_email="dipendrapant778@gmail.com",
-    description="A package to visualize patient trajectories for any number of patients",
+    description="A package designed to visualize patient trajectories for multiple patients, featuring Gantt-style plots to represent patient episodes.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/dipendrapant/patient_trajectory",  # Update as needed
-    packages=find_packages(),
+    url="https://github.com/dipendrapant/patient_trajectory",
+    packages=setuptools.find_packages(),
     install_requires=[
-        "pandas>=1.0.0",
-        "matplotlib>=3.0.0",
+        "numpy",
+        "pandas",
+        "matplotlib",
+        # "scipy" if you want to require advanced curves
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

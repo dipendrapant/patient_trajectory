@@ -1,268 +1,374 @@
 
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
+try:
+    import numpy as np
+except ImportError:
+    raise ImportError("Numpy is required but not installed. Please install via 'pip install numpy'.")
 
+try:
+    import pandas as pd
+except ImportError:
+    raise ImportError("pandas is required but not installed. Please install via 'pip install pandas'.")
+
+try:
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as patches
+except ImportError:
+    raise ImportError("Matplotlib is required but not installed. Please install via 'pip install matplotlib'.")
+
+# We'll conditionally import SciPy for spline interpolation
+try:
+    from scipy.interpolate import make_interp_spline
+    HAS_SCIPY = True
+except ImportError:
+    HAS_SCIPY = False
+    print("Warning: SciPy not found. Curves will be drawn as piecewise lines instead of splines.")
+
+from collections import defaultdict
 
 class PatientTrajectoryVisualizer:
     """
-    A class to load, transform, and visualize patient trajectories for any number of patients.
-    
-    Key Features:
-    -------------
-    1. Load and prepare data with flexible options:
-       - Select columns to keep.
-       - Rename columns.
-       - Drop unwanted columns.
-       - Automatically sort by 'episode_start_date' if present.
-       - Convert 'episode_start_date' and 'episode_end_date' to datetime.
-       - Handle missing (NaN) values gracefully.
-       
-    2. Plot patient timelines:
-       - Plot by 'age' or any numeric column that indicates a starting point.
-       - Auto-calculate end position based on start date + date difference, if available.
-       - Allows specifying a list of columns to annotate each episode segment.
-       - Handle any number of patients.
-       - Optionally color-code by cluster (or any integer column).
-       - Save the figure to file if desired.
+    A class to create a Gantt-style visualization of patient episodes.
 
-    Usage Example:
+    Example usage:
     --------------
-    from patient_trajectory.visualization import PatientTrajectoryVisualizer
-    import pandas as pd
-    
-    data = {
-        "patient_id": [5, 5, 6],
-        "episode_start_date": ["2001-01-01", "2005-01-01", "2010-01-01"],
-        "episode_end_date": ["2001-06-01", "2005-06-01", "2010-12-31"],
-        "age": [0, 4, 50],
-        "cluster": [1, 2, np.nan],  # Missing cluster for patient 6
-        "diagnosis": ["A", "B", None]
-    }
-    df = pd.DataFrame(data)
-    
-    # Instantiate visualizer with custom options
-    viz = PatientTrajectoryVisualizer(
-        selected_columns=["patient_id", "episode_start_date", "episode_end_date", "age", "cluster", "diagnosis"],
-        rename_dict={"patient_id": "pasient"},
-        drop_columns=[],
-    )
-    
-    clean_df = viz.load_data(df)
-    fig, ax = viz.plot_patient_timeline(
-        clean_df,
-        cluster_col="cluster",
-        annotation_cols=["diagnosis"],
-        xlim=(0, 60),
-        save_path="example_plot.png"
-    )
+    df = pd.DataFrame({
+        "pasient": [1, 1, 2],
+        "episode_start_date": ["2020-01-01", "2020-03-01", "2021-01-15"],
+        "episode_end_date":   ["2020-02-01", "2020-04-01", "2021-02-15"],
+        "age": [10, 11, 50],
+        "cluster": [1, 2, 1],
+        "diagnosis": ["Flu", "Cold", "Check-up"]
+    })
+
+    viz = PatientTrajectoryVisualizer(df=df)
+    fig, ax = viz.plot_gantt(annotation_cols=["diagnosis"], save_path="myplot.png")
     plt.show()
     """
 
     def __init__(
         self,
-        selected_columns=None,
-        rename_dict=None,
-        drop_columns=None,
-    ):
-        """
-        Parameters
-        ----------
-        selected_columns : list of str, optional
-            Columns to keep from the original DataFrame. If None, keep all columns.
-        rename_dict : dict, optional
-            A dictionary mapping {old_name: new_name} for renaming columns.
-        drop_columns : list of str, optional
-            Columns to drop from the DataFrame (after selecting and renaming).
-        """
-        self.selected_columns = selected_columns
-        self.rename_dict = rename_dict
-        self.drop_columns = drop_columns
-
-    def load_data(self, df):
-        """
-        Load and transform patient data.
-        
-        Steps:
-        1. Optionally select specific columns (if selected_columns is provided).
-        2. Optionally rename columns based on rename_dict.
-        3. Optionally drop columns in drop_columns.
-        4. Convert 'episode_start_date' and 'episode_end_date' columns to datetime if they exist.
-        5. Sort by 'episode_start_date' if it exists.
-        
-        Parameters
-        ----------
-        df : pandas.DataFrame
-            Original DataFrame containing patient data.
-        
-        Returns
-        -------
-        pandas.DataFrame
-            A cleaned/processed DataFrame ready for plotting.
-        """
-        # Make a copy so we don't alter the original DataFrame
-        df = df.copy()
-
-        # 1. Select columns
-        if self.selected_columns is not None:
-            df = df[self.selected_columns]
-
-        # 2. Rename columns
-        if self.rename_dict is not None:
-            df = df.rename(columns=self.rename_dict)
-
-        # 3. Drop unwanted columns
-        if self.drop_columns is not None:
-            df = df.drop(columns=self.drop_columns, errors="ignore")
-
-        # 4. Convert date columns to datetime if they exist
-        for date_col in ["episode_start_date", "episode_end_date"]:
-            if date_col in df.columns:
-                df[date_col] = pd.to_datetime(df[date_col], errors="coerce")
-
-        # 5. Sort by episode_start_date if available
-        if "episode_start_date" in df.columns:
-            df = df.sort_values(by="episode_start_date")
-
-        return df
-
-    def plot_patient_timeline(
-        self,
-        df,
+        df: pd.DataFrame,
         pasient_col="pasient",
-        age_col="age",
         cluster_col="cluster",
-        annotation_cols=None,
-        cluster_colors=None,
-        xlim=(0, 100),
-        figsize=(12, 5),
-        dpi=100,
-        save_path=None,
+        start_date_col="episode_start_date",
+        end_date_col="episode_end_date",
+        # The user can store more defaults here if needed
     ):
         """
-        Plot a timeline of patient trajectories by age (or a user-selected numeric column).
-        
+        Initialize the visualizer with a DataFrame and basic column mappings.
+        """
+        self.df = df
+        self.pasient_col = pasient_col
+        self.cluster_col = cluster_col
+        self.start_date_col = start_date_col
+        self.end_date_col = end_date_col
+
+        # Basic validity checks
+        if "age" not in df.columns:
+            raise ValueError("DataFrame must have an 'age' column for the numeric axis.")
+        if pasient_col not in df.columns:
+            raise ValueError(f"DataFrame missing required column: {pasient_col}")
+
+        # Make sure date columns are datetime
+        if not np.issubdtype(df[start_date_col].dtype, np.datetime64):
+            self.df[start_date_col] = pd.to_datetime(df[start_date_col], errors="coerce")
+        if not np.issubdtype(df[end_date_col].dtype, np.datetime64):
+            self.df[end_date_col] = pd.to_datetime(df[end_date_col], errors="coerce")
+
+        # Compute age_start => from the "age" column
+        self.df["age_start"] = self.df["age"]
+
+        # Compute age_end => from the date difference (fallback = same as start)
+        def compute_age_end(row):
+            if pd.notnull(row[self.end_date_col]) and pd.notnull(row[self.start_date_col]):
+                dur_days = (row[self.end_date_col] - row[self.start_date_col]).days
+                return row["age_start"] + dur_days / 365.0
+            else:
+                return row["age_start"]
+
+        self.df["age_end"] = self.df.apply(compute_age_end, axis=1)
+
+        # Sort by patient, then by age_start
+        self.df.sort_values(by=[pasient_col, "age_start"], inplace=True, ignore_index=True)
+
+    def plot_gantt(
+        self,
+        annotation_cols=None,
+        figsize=(12, 6),
+        dpi=60,
+        cluster_colors=None,
+        row_height=0.6,
+        row_gap=0.2,
+        annotation_fontsize=8,
+        axis_fontsize=12,
+        title_fontsize=14,
+        add_cluster_legend=True,
+        save_path=None,
+        curve_color="black",
+        curve_linestyle="--",
+        curve_linewidth=2.0,
+        title="Patient Episodes Trajectory"
+    ):
+        """
+        Plot the Gantt chart for patient episodes.
+
         Parameters
         ----------
-        df : pandas.DataFrame
-            The DataFrame returned by load_data().
-        pasient_col : str, optional
-            The column name identifying patients. Default is "pasient".
-        age_col : str, optional
-            The column name containing the numeric value for the start of the episode. Default is "age".
-        cluster_col : str, optional
-            The column name used to color-code the episodes (integer-based). Default is "cluster".
         annotation_cols : list of str, optional
-            A list of column names to annotate on each timeline segment.
-            Each segment will show these columns' values (if not NaN).
+            Columns to annotate in each rectangle (first 2 are line 1, rest line 2).
+        figsize : tuple
+            (width, height) in inches for the figure.
+        dpi : int
+            Resolution (dots per inch).
         cluster_colors : list of str, optional
-            A list of colors for cluster indices (1-based). If None, a default palette is used.
-        xlim : tuple, optional
-            (min, max) for the X-axis. Default is (0, 100).
-        figsize : tuple, optional
-            The size of the figure in inches. Default is (12, 5).
-        dpi : int, optional
-            Resolution of the figure in dots per inch. Default is 100.
-        save_path : str, optional
-            File path to save the figure. If None, the figure is not saved.
-        
+            List of colors for cluster indices (1-based). Missing => uses default.
+        row_height : float
+            Height of each episode bar.
+        row_gap : float
+            Vertical space between bars.
+        annotation_fontsize : int
+            Font size of annotation text.
+        axis_fontsize : int
+            Font size for axis labels.
+        title_fontsize : int
+            Font size for the plot title.
+        add_cluster_legend : bool
+            Whether to add a legend for cluster colors.
+        save_path : str or None
+            If provided, the figure is saved to this path (e.g., "myplot.png").
+        curve_color : str
+            Color for the line connecting episodes of the same patient.
+        curve_linestyle : str
+            Linestyle (e.g. "--") for the connecting line or spline.
+        curve_linewidth : float
+            Width for the connecting line.
+        title : str
+            Title of the plot.
+
         Returns
         -------
-        (matplotlib.figure.Figure, matplotlib.axes._axes.Axes)
-            The created figure and axes objects.
-        
-        Notes
-        -----
-        - If `episode_end_date` and `episode_start_date` columns exist, the end
-          age is computed as: start_age + (end_date - start_date in days)/365.2425.
-          If either date is missing, we default to the start_age for both ends.
-        - Missing cluster or annotation values are handled gracefully; e.g., if
-          cluster is NaN, a default color of 'gray' is used.
+        (fig, ax) : (matplotlib.figure.Figure, matplotlib.axes._axes.Axes)
         """
-        # Check if the DataFrame has the required columns
-        if pasient_col not in df.columns:
-            raise KeyError(f"DataFrame must contain a '{pasient_col}' column.")
-        if age_col not in df.columns:
-            raise KeyError(f"DataFrame must contain a '{age_col}' column.")
 
-        if cluster_colors is None:
-            # Some default colors for clusters 1..n
-            cluster_colors = ["red", "green", "blue", "orange", "purple", "brown", "cyan"]
+        df = self.df
+        pasient_col = self.pasient_col
+        cluster_col = self.cluster_col
+        start_date_col = self.start_date_col
+        end_date_col = self.end_date_col
 
         if annotation_cols is None:
             annotation_cols = []
 
-        unique_patients = df[pasient_col].unique()
-        fig, ax = plt.subplots(1, 1, figsize=figsize, dpi=dpi)
+        # Default cluster colors
+        if cluster_colors is None:
+            cluster_colors = [
+                "red", "green", "blue", "orange",
+                "purple", "brown", "cyan", "magenta",
+                "yellow", "pink", "olive", "teal"
+            ]
 
-        for i, patient_id in enumerate(unique_patients):
-            # Subset for one patient
-            patient_data = df[df[pasient_col] == patient_id]
+        # Create figure and axes
+        fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
 
-            for _, row in patient_data.iterrows():
-                start_val = row[age_col]
+        current_y = 0.0
+        y_ticks = []
+        y_tick_labels = []
+        used_clusters = set()
 
-                # If the row has date columns, attempt to compute an end_val
-                if "episode_end_date" in row and "episode_start_date" in row:
-                    if pd.notnull(row["episode_end_date"]) and pd.notnull(row["episode_start_date"]):
-                        duration_days = (row["episode_end_date"] - row["episode_start_date"]).days
-                        end_val = start_val + duration_days / 365.2425
+        all_age_starts = []
+        all_age_ends = []
+
+        patient_centers = defaultdict(list)
+
+        # Plot each row
+        num_rows = len(df)
+        for idx in range(num_rows):
+            row = df.iloc[idx]
+            patient_id = row[pasient_col]
+            age_start = row["age_start"]
+            age_end = row["age_end"]
+
+            # Ensure minimal width
+            width = age_end - age_start
+            if width <= 0:
+                width = 0.5
+
+            all_age_starts.append(age_start)
+            all_age_ends.append(age_start + width)
+
+            # Cluster color
+            cluster_val = row.get(cluster_col, np.nan)
+            if pd.notnull(cluster_val):
+                try:
+                    cluster_idx = int(cluster_val) - 1
+                except (ValueError, TypeError):
+                    cluster_idx = -1
+            else:
+                cluster_idx = -1
+
+            color = cluster_colors[cluster_idx] if 0 <= cluster_idx < len(cluster_colors) else "gray"
+            if cluster_idx >= 0:
+                used_clusters.add(cluster_idx)
+
+            # Draw rectangle
+            rect = patches.Rectangle(
+                (age_start, current_y),
+                width,
+                row_height,
+                facecolor=color,
+                edgecolor="black",
+                alpha=0.7
+            )
+            ax.add_patch(rect)
+
+            # Center of bar
+            center_x = age_start + width / 2.0
+            center_y = current_y + row_height / 2.0
+            patient_centers[patient_id].append((center_x, center_y))
+
+            # Build annotation text (2 lines: first 2 columns => line1, rest => line2)
+            line1_parts = []
+            line2_parts = []
+            for i, col in enumerate(annotation_cols):
+                val = row.get(col, None)
+                if pd.notnull(val):
+                    entry = f"{col}: {val}"
+                    if i < 2:
+                        line1_parts.append(entry)
                     else:
-                        end_val = start_val
-                else:
-                    end_val = start_val
+                        line2_parts.append(entry)
 
-                # Determine color based on cluster
-                if cluster_col in row and pd.notnull(row[cluster_col]):
-                    # Convert cluster to an int, then index into cluster_colors
-                    cluster_idx = int(row[cluster_col]) - 1
-                    if 0 <= cluster_idx < len(cluster_colors):
-                        color = cluster_colors[cluster_idx]
-                    else:
-                        color = "gray"
-                else:
-                    color = "gray"
+            line1 = ", ".join(line1_parts)
+            line2 = ", ".join(line2_parts)
+            if line1 and line2:
+                annotation_text = f"{line1}\n{line2}"
+            elif line1:
+                annotation_text = line1
+            else:
+                annotation_text = ""
 
-                # Plot the line segment
-                ax.plot([start_val, end_val], [i, i], linewidth=5, color=color)
+            # Place text
+            if annotation_text.strip():
+                ax.text(
+                    center_x + 0.5,
+                    center_y,
+                    annotation_text,
+                    ha="left",
+                    va="center",
+                    fontsize=annotation_fontsize,
+                    color="black",
+                    bbox=dict(
+                        boxstyle="round,pad=0.3",
+                        facecolor="white",
+                        edgecolor="none",
+                        alpha=0.6
+                    )
+                )
 
-                # Build annotation text from annotation_cols
-                annotation_parts = []
-                for col in annotation_cols:
-                    if col in row and pd.notnull(row[col]):
-                        annotation_parts.append(f"{col}: {row[col]}")
-                annotation_text = "; ".join(annotation_parts)
+            # Y-label
+            episode_label = f"Pat {patient_id}, E{idx+1}"
+            y_ticks.append(center_y)
+            y_tick_labels.append(episode_label)
 
-                # If there's something to annotate, place text near the start
-                if annotation_text:
-                    ax.annotate(
-                        annotation_text,
-                        (start_val, i),
-                        xytext=(5, 5),
-                        textcoords="offset points",
-                        ha="left",
-                        va="bottom",
-                        fontsize=8,
-                        bbox=dict(
-                            boxstyle="round,pad=0.3",
-                            edgecolor="grey",
-                            linewidth=0.5,
-                            facecolor="white",
-                            alpha=0.7
-                        ),
+            # Advance
+            current_y += (row_height + row_gap)
+
+            # Dotted line if next row is a new patient
+            if idx < (num_rows - 1):
+                next_patient_id = df.iloc[idx+1][pasient_col]
+                if next_patient_id != patient_id:
+                    ax.axhline(
+                        y=current_y,
+                        color='gray',
+                        linestyle=':',
+                        linewidth=1.0,
+                        alpha=0.8
                     )
 
-        ax.set_yticks(range(len(unique_patients)))
-        ax.set_yticklabels(unique_patients)
-        ax.set_xlim(xlim)
-        ax.set_xlabel(age_col.capitalize())
-        ax.set_ylabel(pasient_col.capitalize())
-        ax.grid(True, linewidth=0.5, alpha=0.3)
+        # Connect episodes (spline if SciPy, else piecewise)
+        if HAS_SCIPY:
+            for pid, centers in patient_centers.items():
+                if len(centers) < 2:
+                    continue
+                centers_sorted = sorted(centers, key=lambda c: c[1])
+                xs = [c[0] for c in centers_sorted]
+                ys = [c[1] for c in centers_sorted]
+                if len(xs) < 2:
+                    continue
+                k_spline = min(3, len(xs) - 1)
+                if k_spline < 1:
+                    continue
+                y_new = np.linspace(ys[0], ys[-1], 150)
+                spline = make_interp_spline(ys, xs, k=k_spline)
+                x_smooth = spline(y_new)
+                ax.plot(
+                    x_smooth, y_new,
+                    color=curve_color,
+                    linestyle=curve_linestyle,
+                    linewidth=curve_linewidth,
+                    alpha=0.8
+                )
+        else:
+            # piecewise fallback
+            for pid, centers in patient_centers.items():
+                if len(centers) < 2:
+                    continue
+                centers_sorted = sorted(centers, key=lambda c: c[1])
+                xs = [c[0] for c in centers_sorted]
+                ys = [c[1] for c in centers_sorted]
+                ax.plot(
+                    xs, ys,
+                    color=curve_color,
+                    linestyle=curve_linestyle,
+                    linewidth=curve_linewidth,
+                    alpha=0.8
+                )
+
+        # Configure axes
+        ax.set_yticks(y_ticks)
+        ax.set_yticklabels(y_tick_labels, fontsize=axis_fontsize)
+
+        if all_age_starts and all_age_ends:
+            age_min = min(all_age_starts)
+            age_max = max(all_age_ends)
+            ax.set_xlim(age_min - 0.5, age_max + 0.5)
+        else:
+            ax.set_xlim(0, 1)
+
+        ax.set_ylim(0, current_y)
+        ax.set_xlabel("Age (Years)", fontsize=axis_fontsize)
+        ax.set_ylabel("Patient Episodes", fontsize=axis_fontsize)
+        ax.grid(True, axis="x", linestyle="--", alpha=0.5)
+
+        ax.set_title(title, fontsize=title_fontsize, pad=20)
+
+        # Optional cluster legend
+        if add_cluster_legend and len(used_clusters) > 0:
+            from matplotlib.lines import Line2D
+            legend_elems = []
+            for c_idx in sorted(used_clusters):
+                c_label = f"Cluster {c_idx+1}"
+                c_color = cluster_colors[c_idx]
+                legend_elems.append(
+                    Line2D([0], [0],
+                           color=c_color,
+                           marker='s', markersize=5,
+                           linewidth=2, label=c_label, alpha=0.7)
+                )
+            ax.legend(
+                handles=legend_elems,
+                title="Clusters",
+                fontsize=axis_fontsize,
+                title_fontsize=axis_fontsize,
+                loc='upper left',
+                bbox_to_anchor=(1.05, 1)
+            )
 
         fig.tight_layout()
 
-        # Optionally save the figure
-        if save_path is not None:
+        # Save if requested
+        if save_path:
             fig.savefig(save_path, dpi=dpi, bbox_inches="tight")
 
         return fig, ax
+
